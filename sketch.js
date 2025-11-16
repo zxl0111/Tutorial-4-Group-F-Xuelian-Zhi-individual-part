@@ -1,4 +1,4 @@
-// Commit 2: add Perlin noise breathing + slow spin
+// Commit 3: internal scattered dots become floating + bouncing particles
 
 // Color palettes for the artwork
 let colorPalettes = [
@@ -61,6 +61,33 @@ function initLayout() {
     if (ok) {
       let palette = random(colorPalettes);
 
+      // Floating internal dots (replacing static scatter)
+      let floatDots = [];
+      let floatCount = 26;
+      let floatRadiusMax = size * 0.45;
+      let floatRadiusMin = size * 0.12;
+
+      for (let j = 0; j < floatCount; j++) {
+        let a = random(360);
+        let r = random(floatRadiusMin, floatRadiusMax * 0.9);
+        let px = cos(a) * r;
+        let py = sin(a) * r;
+
+        // SLOWER floating speed, closer to final feeling
+        let speed = random(0.12, 0.35);
+        let dir = random(360);
+        let vx = cos(dir) * speed;
+        let vy = sin(dir) * speed;
+
+        floatDots.push({
+          x: px,
+          y: py,
+          vx,
+          vy,
+          color: random(palette)
+        });
+      }
+
       // Add animation-related data:
       // spinAngle: current rotation
       // spinDir: +1 or -1 for clockwise / counter-clockwise
@@ -72,7 +99,9 @@ function initLayout() {
         palette,
         spinAngle: random(360),
         spinDir: random([1, -1]),
-        noiseOffset: random(1000)
+        noiseOffset: random(1000),
+        floatDots,
+        floatRadiusMax
       });
 
       placed.push({ x, y, size });
@@ -90,11 +119,31 @@ function draw() {
   }
 }
 
-// Update per-circle animation state (spin and breathing)
+// Update per-circle animation state (spin and floating dots)
 function updateCircle(c) {
-  // Slow constant spin
-  let spinSpeed = 0.15; // degrees per frame
+  // Slow constant spin (aligned with your final version)
+  let spinSpeed = 0.08; // degrees per frame
   c.spinAngle += c.spinDir * spinSpeed;
+
+  // Update floating dots with bounce
+  for (let d of c.floatDots) {
+    d.x += d.vx;
+    d.y += d.vy;
+
+    let distFromCenter = sqrt(d.x * d.x + d.y * d.y);
+
+    if (distFromCenter > c.floatRadiusMax) {
+      let nx = d.x / distFromCenter;
+      let ny = d.y / distFromCenter;
+
+      let vDotN = d.vx * nx + d.vy * ny;
+      d.vx -= 2 * vDotN * nx;
+      d.vy -= 2 * vDotN * ny;
+
+      d.x = nx * c.floatRadiusMax;
+      d.y = ny * c.floatRadiusMax;
+    }
+  }
 }
 
 // Draw one animated circle based on the original group design
@@ -113,13 +162,16 @@ function drawCircleAnimated(c) {
   rotate(c.spinAngle);
 
   // Draw the original wheel design at the origin
-  drawCircleAtOrigin(c.size, c.palette);
+  drawCircleAtOrigin(c);
 
   pop();
 }
 
 // Draw one circle with many patterns, now assuming (0,0) is already translated
-function drawCircleAtOrigin(size, palette) {
+function drawCircleAtOrigin(c) {
+  let size = c.size;
+  let palette = c.palette;
+
   // Background glow
   noStroke();
   fill(255, 255, 255, 35);
@@ -129,16 +181,11 @@ function drawCircleAtOrigin(size, palette) {
   fill(palette[0]);
   ellipse(0, 0, size);
 
-  // Scattered small colorful dots inside the big circle
-  let scatterDots = 30;
-  for (let i = 0; i < scatterDots; i++) {
-    let r = random(size * 0.05, size * 0.40);
-    let a = random(360);
-    let px = cos(a) * r;
-    let py = sin(a) * r;
+  // Floating small colorful dots inside the big circle
+  for (let d of c.floatDots) {
     noStroke();
-    fill(random(palette));
-    ellipse(px, py, size * 0.035);
+    fill(d.color);
+    ellipse(d.x, d.y, size * 0.04);
   }
 
   // Ring lines around the circle
@@ -149,7 +196,7 @@ function drawCircleAtOrigin(size, palette) {
     ellipse(0, 0, r);
   }
 
-  // Inside dots - colorful
+  // Inside dots - colorful (same as commit 2)
   stroke(255);
   strokeWeight(1.4);
   let insideDots = 16;
