@@ -1,4 +1,4 @@
-// Commit 5: inner 6 rings reveal from inside to outside, and 16 inner dots reveal directionally (same direction as orbital ring)
+// Final commit: grouped breathing for wheels (3 breathing groups)
 
 // Color palettes for the artwork
 let colorPalettes = [
@@ -78,6 +78,7 @@ function initLayout() {
       }
 
       let spinDir = random([1, -1]);
+      let groupId = floor(random(3)); // breathing group 0,1,2
 
       circles.push({
         x,
@@ -89,8 +90,9 @@ function initLayout() {
         noiseOffset: random(1000),
         floatDots,
         floatRadiusMax,
-        orbitDir: -spinDir, // reveal direction opposite to spin
-        revealPhase: 0      // 0 → 1 loop for orbital / rings / inner dots
+        orbitDir: -spinDir,   // reveal direction opposite to spin
+        revealPhase: 0,       // 0 → 1 loop for orbital / rings / inner dots
+        groupId: groupId      // grouped breathing
       });
 
       placed.push({ x, y, size });
@@ -141,10 +143,15 @@ function drawCircleAnimated(c) {
   push();
   translate(c.x, c.y);
 
-  // Breathing scale (Perlin noise)
-  let t = frameCount * 0.004 + c.noiseOffset;
-  let n = noise(t);
-  let scaleFactor = 0.9 + n * 0.25;
+  // Grouped breathing: 3 groups with slightly different speed & amplitude
+  let speeds = [0.0035, 0.0045, 0.0055];
+  let amounts = [0.26, 0.32, 0.38];
+  let g = c.groupId || 0;
+  let breathSpeed = speeds[g % speeds.length];
+  let breathAmount = amounts[g % amounts.length];
+
+  let breathNoise = noise(frameCount * breathSpeed + c.noiseOffset);
+  let scaleFactor = 0.78 + breathNoise * breathAmount;
   scale(scaleFactor);
 
   // Spin
@@ -158,8 +165,10 @@ function drawCircleAnimated(c) {
 function drawCircleAtOrigin(c) {
   let size = c.size;
   let palette = c.palette;
+
+  // Lock random pattern inside this wheel (stable colours)
   randomSeed(floor(c.noiseOffset * 10000));
-  
+
   // Background glow
   noStroke();
   fill(255, 255, 255, 35);
@@ -176,7 +185,7 @@ function drawCircleAtOrigin(c) {
     ellipse(d.x, d.y, size * 0.04);
   }
 
-  // RING LINES: 6 rings reveal from inner to outer (using revealPhase)
+  // RING LINES: 6 rings reveal from inner to outer (simple version)
   stroke(palette[1]);
   strokeWeight(2);
   noFill();
@@ -192,7 +201,6 @@ function drawCircleAtOrigin(c) {
   let totalRings = ringRadii.length;
   let outerIndex = totalRings - 1;
 
-  // which ring index is currently visible (0..totalRings-1)
   let ringVisibleIndex = floor(c.revealPhase * totalRings);
   if (ringVisibleIndex < 0) ringVisibleIndex = 0;
   if (ringVisibleIndex > outerIndex) ringVisibleIndex = outerIndex;
@@ -203,12 +211,11 @@ function drawCircleAtOrigin(c) {
     }
   }
 
-  // INSIDE DOTS: 16 dots reveal in the same direction as orbital ring
+  // INSIDE DOTS: 16 dots reveal in same direction as orbital ring
   stroke(255);
   strokeWeight(1.4);
   let insideDots = 16;
 
-  // how many dots should be visible at current phase
   let dotCount = floor(c.revealPhase * insideDots) + 1;
   if (dotCount > insideDots) dotCount = insideDots;
 
@@ -232,7 +239,7 @@ function drawCircleAtOrigin(c) {
     ellipse(px, py, size * 0.09);
   }
 
-  // Orbital ring with directional reveal (same as commit 4)
+  // Orbital ring with directional reveal
   drawOrbitalRingReveal(c);
 
   // 8 lines like wheel spokes
