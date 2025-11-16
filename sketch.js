@@ -1,4 +1,5 @@
-// Final commit: grouped breathing for wheels (3 breathing groups)
+// Pacita Abad "Wheels of Fortune" – Individual Animated Version
+// Personal task: Perlin-noise-driven breathing + randomness + time-based reveal.
 
 // Color palettes for the artwork
 let colorPalettes = [
@@ -17,6 +18,7 @@ function setup() {
   initLayout();
 }
 
+// Build layout and data for all wheels (starting from the group static version)
 function initLayout() {
   circles = [];
   background("#1e2c3a");
@@ -32,6 +34,8 @@ function initLayout() {
     let ok = false;
     let tries = 0;
 
+    // Simple overlap-avoidance: try random positions until wheels do not overlap too much.
+    // This logic is adapted from typical “no-overlap placement” patterns in generative art.
     while (!ok && tries < 200) {
       x = random(margin, width - margin);
       y = random(margin, height - margin);
@@ -51,7 +55,7 @@ function initLayout() {
     if (ok) {
       let palette = random(colorPalettes);
 
-      // Floating internal dots
+      // Floating internal dots: each wheel stores its own small particles.
       let floatDots = [];
       let floatCount = 26;
       let floatRadiusMax = size * 0.45;
@@ -78,6 +82,10 @@ function initLayout() {
       }
 
       let spinDir = random([1, -1]);
+
+      // Extra design: assign each wheel to one of three breathing groups.
+      // Group-based Perlin breathing uses different noise speeds and amplitudes.
+      // Perlin noise reference: https://p5js.org/reference/p5/noise/ https://p5js.org/examples/repetition-noise/
       let groupId = floor(random(3)); // breathing group 0,1,2
 
       circles.push({
@@ -87,12 +95,12 @@ function initLayout() {
         palette,
         spinAngle: random(360),
         spinDir: spinDir,
-        noiseOffset: random(1000),
+        noiseOffset: random(1000),  // different phase for noise per wheel
         floatDots,
         floatRadiusMax,
-        orbitDir: -spinDir,   // reveal direction opposite to spin
-        revealPhase: 0,       // 0 → 1 loop for orbital / rings / inner dots
-        groupId: groupId      // grouped breathing
+        orbitDir: -spinDir,         // reveal direction opposite to spin
+        revealPhase: 0,             // 0 → 1 loop for orbital / rings / inner dots
+        groupId: groupId            // grouped breathing
       });
 
       placed.push({ x, y, size });
@@ -110,15 +118,16 @@ function draw() {
 }
 
 function updateCircle(c) {
-  // Slow constant spin
+  // Slow constant spin for each wheel (time-based, not user input).
   let spinSpeed = 0.08;
   c.spinAngle += c.spinDir * spinSpeed;
 
-  // Reveal phase loop
+  // Reveal phase loop: 0 → 1 → 0 → …, used to reveal rings and dots.
+  // This is a custom time-based reveal design, not taken from a specific tutorial.
   let revealSpeed = 0.004; // about 4s per loop
   c.revealPhase = (c.revealPhase + revealSpeed) % 1;
 
-  // Floating dots with bounce
+  // Floating dots with bounce inside a circular boundary
   for (let d of c.floatDots) {
     d.x += d.vx;
     d.y += d.vy;
@@ -126,13 +135,21 @@ function updateCircle(c) {
     let distFromCenter = sqrt(d.x * d.x + d.y * d.y);
 
     if (distFromCenter > c.floatRadiusMax) {
+      // Normal vector on the circle boundary (from center to dot)
       let nx = d.x / distFromCenter;
       let ny = d.y / distFromCenter;
 
+      // Reflect velocity across the normal:
+      // v' = v - 2 * (v · n) * n
+      // This reflection technique is based on the standard vector reflection formula:
+      // https://en.wikipedia.org/wiki/Reflection_(mathematics)
+      // similar to the p5.js example “Non-Orthogonal Reflection”:
+      // https://p5js.org/examples/math-and-physics-non-orthogonal-reflection/
       let vDotN = d.vx * nx + d.vy * ny;
       d.vx -= 2 * vDotN * nx;
       d.vy -= 2 * vDotN * ny;
 
+      // Move the dot back onto the boundary so it does not get stuck outside.
       d.x = nx * c.floatRadiusMax;
       d.y = ny * c.floatRadiusMax;
     }
@@ -143,7 +160,9 @@ function drawCircleAnimated(c) {
   push();
   translate(c.x, c.y);
 
-  // Grouped breathing: 3 groups with slightly different speed & amplitude
+  // Grouped breathing: 3 groups with slightly different noise speed & amplitude.
+  // This is a custom use of Perlin noise to create clustered but non-uniform motion.
+  // Perlin noise reference: https://p5js.org/reference/p5/noise/ https://p5js.org/examples/repetition-noise/
   let speeds = [0.0035, 0.0045, 0.0055];
   let amounts = [0.26, 0.32, 0.38];
   let g = c.groupId || 0;
@@ -154,7 +173,7 @@ function drawCircleAnimated(c) {
   let scaleFactor = 0.78 + breathNoise * breathAmount;
   scale(scaleFactor);
 
-  // Spin
+  // Spin around the centre of each wheel
   rotate(c.spinAngle);
 
   drawCircleAtOrigin(c);
@@ -166,7 +185,9 @@ function drawCircleAtOrigin(c) {
   let size = c.size;
   let palette = c.palette;
 
-  // Lock random pattern inside this wheel (stable colours)
+  // Lock random pattern inside this wheel so colours stay stable across frames.
+  // randomSeed ensures random() returns the same sequence each frame for this wheel.
+  // randomSeed reference: https://p5js.org/reference/p5/randomSeed/
   randomSeed(floor(c.noiseOffset * 10000));
 
   // Background glow
@@ -178,14 +199,14 @@ function drawCircleAtOrigin(c) {
   fill(palette[0]);
   ellipse(0, 0, size);
 
-  // Floating small colorful dots inside the big circle
+  // Floating small colorful dots inside the big circle (positions updated in updateCircle)
   for (let d of c.floatDots) {
     noStroke();
     fill(d.color);
     ellipse(d.x, d.y, size * 0.04);
   }
 
-  // RING LINES: 6 rings reveal from inner to outer (simple version)
+  // 6 inner rings: reveal from inner to outer using revealPhase 
   stroke(palette[1]);
   strokeWeight(2);
   noFill();
@@ -201,6 +222,8 @@ function drawCircleAtOrigin(c) {
   let totalRings = ringRadii.length;
   let outerIndex = totalRings - 1;
 
+  // Time-based reveal: map a 0–1 phase value to a discrete ring index (0..N-1).
+  // This phased reveal logic is custom for this project (not copied from an external source).
   let ringVisibleIndex = floor(c.revealPhase * totalRings);
   if (ringVisibleIndex < 0) ringVisibleIndex = 0;
   if (ringVisibleIndex > outerIndex) ringVisibleIndex = outerIndex;
@@ -211,7 +234,7 @@ function drawCircleAtOrigin(c) {
     }
   }
 
-  // INSIDE DOTS: 16 dots reveal in same direction as orbital ring
+  // 16 inner dots: reveal along the ring in same direction as orbital ring
   stroke(255);
   strokeWeight(1.4);
   let insideDots = 16;
@@ -223,10 +246,10 @@ function drawCircleAtOrigin(c) {
     let visible = false;
 
     if (c.orbitDir > 0) {
-      // clockwise: light from index 0 upwards
+      // clockwise: reveal from index 0 upwards
       visible = i < dotCount;
     } else {
-      // counter-clockwise: light from the end backwards
+      // counter-clockwise: reveal from the last index backwards
       visible = i >= insideDots - dotCount;
     }
 
@@ -239,7 +262,7 @@ function drawCircleAtOrigin(c) {
     ellipse(px, py, size * 0.09);
   }
 
-  // Orbital ring with directional reveal
+  // Outer orbital ring dots with directional reveal
   drawOrbitalRingReveal(c);
 
   // 8 lines like wheel spokes
@@ -262,7 +285,7 @@ function drawCircleAtOrigin(c) {
   ellipse(0, 0, size * 0.07);
 }
 
-// Orbital ring with gradual reveal, direction opposite to spinDir
+// Orbital ring with gradual reveal, direction opposite to spinDir.
 function drawOrbitalRingReveal(c) {
   let size = c.size;
   let palette = c.palette;
@@ -274,7 +297,9 @@ function drawOrbitalRingReveal(c) {
   let dotsPerSegment = 7;
   let totalConnectingDots = outerDotCount * dotsPerSegment;
 
-  // Connecting dots
+  // Connecting dots along the orbit.
+  // Directional reveal is based on normalized angle [0,1] and phase.
+  // This is a custom time-based design using angles; not taken from a specific tutorial.
   for (let i = 0; i < totalConnectingDots; i++) {
     let angle = i * (360 / totalConnectingDots);
     let norm = angle / 360.0;
@@ -299,7 +324,7 @@ function drawOrbitalRingReveal(c) {
     ellipse(px, py, dotSize);
   }
 
-  // Main concentric dots on orbit
+  // Main concentric dots on orbit, using the same directional reveal logic.
   for (let i = 0; i < outerDotCount; i++) {
     let angle = i * (360 / outerDotCount);
     let norm = angle / 360.0;
